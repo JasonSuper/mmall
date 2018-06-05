@@ -16,6 +16,8 @@ public class TokenCache {
 
     private static Logger logger = LoggerFactory.getLogger(TokenCache.class);
 
+    public static String TOKEN_PERFIX = "token_";
+
     // LRU算法
     private static LoadingCache<String, String> localCache = CacheBuilder.newBuilder()
             .initialCapacity(1000)  // 初始容量

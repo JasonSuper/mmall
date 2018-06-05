@@ -11,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpSession;
 import java.util.UUID;
 
 /**
@@ -26,8 +27,8 @@ public class UserServiceImpl implements IUserService {
     @Override
     public ServerResponse<User> login(String username, String password) {
         ServerResponse serverResponse = checkValid(username, Const.USERNAME);
-        if (!serverResponse.isSuccess())
-            return serverResponse;
+        if (serverResponse.isSuccess())
+            return ServerResponse.createByErrorMsg("用户名不存在");
 
         // todo 密码登陆MD5
         String md5Password = MD5Util.MD5EncodeUtf8(password);
@@ -95,9 +96,86 @@ public class UserServiceImpl implements IUserService {
         int resultCount = userMapper.checkAnswer(username, question, answer);
         if (resultCount > 0) {
             String forgerToken = UUID.randomUUID().toString();
-            TokenCache.setKey("token" + username, forgerToken);
+            TokenCache.setKey(TokenCache.TOKEN_PERFIX + username, forgerToken);
             return ServerResponse.createBySuccess(forgerToken);
         }
         return ServerResponse.createByErrorMsg("问题的答案不正确");
+    }
+
+    public ServerResponse<String> forgetResetPassword(String username, String passwordNew, String forgettoken) {
+        if (!StringUtils.isNotBlank(forgettoken))
+            return ServerResponse.createByErrorMsg("参数错误，需要token");
+
+        ServerResponse validResponse = checkValid(username, Const.USERNAME);
+        if (validResponse.isSuccess()) {
+            return ServerResponse.createByErrorMsg("用户名不存在");
+        }
+
+        String token = TokenCache.getKey(TokenCache.TOKEN_PERFIX + username);
+        if (!StringUtils.isNotBlank(token))
+            return ServerResponse.createByErrorMsg("token无效或已过期");
+
+        if (StringUtils.equals(forgettoken, token)) {
+            String md5Password = MD5Util.MD5EncodeUtf8(passwordNew);
+            int resultCount = userMapper.updatePassword(username, md5Password);
+
+            if (resultCount > 0)
+                return ServerResponse.createBySuccessMsg("修改密码成功");
+        } else {
+            return ServerResponse.createByErrorMsg("token错误，请重新获取重置密码的token");
+        }
+        return ServerResponse.createBySuccessMsg("修改密码失败");
+    }
+
+    public ServerResponse<String> resstPassword(User user, String passwordOld, String passwordNew) {
+        String MD5PasswordOld = MD5Util.MD5EncodeUtf8(passwordOld);
+        String MD5PasswordNew = MD5Util.MD5EncodeUtf8(passwordNew);
+
+        // 防止横向越权，必须校验旧密码
+        int resultCount = userMapper.checkPassword(MD5PasswordOld, user.getId());
+        if (resultCount == 0)
+            return ServerResponse.createByErrorMsg("旧密码错误");
+
+        user.setPassword(MD5PasswordNew);
+        int updateCount = userMapper.updateByPrimaryKeySelective(user);
+        if (updateCount > 0)
+            return ServerResponse.createBySuccessMsg("密码重置成功");
+        return ServerResponse.createBySuccessMsg("密码重置失败");
+    }
+
+    public ServerResponse<User> updateUserInformation(User user) {
+        // username不能被更新
+        // 校验新email是否存在
+        int checkCount = userMapper.checkEmailByUserId(user.getEmail(), user.getId());
+        if (checkCount > 0)
+            return ServerResponse.createBySuccessMsg("邮箱已被使用");
+
+        User updateUser = new User();
+        updateUser.setId(user.getId());
+        updateUser.setEmail(user.getEmail());
+        updateUser.setPhone(user.getPhone());
+        updateUser.setQuestion(user.getQuestion());
+        updateUser.setAnswer(updateUser.getAnswer());
+
+        int updateCount = userMapper.updateByPrimaryKeySelective(updateUser);
+        if (updateCount > 0)
+            return ServerResponse.createBySuccess("用户信息更新成功", userMapper.selectByPrimaryKey(updateUser.getId()));
+        return ServerResponse.createBySuccessMsg("用户信息更新失败");
+    }
+
+    public ServerResponse<User> getInformation(Integer userId) {
+        User user = userMapper.selectByPrimaryKey(userId);
+        if (user == null)
+            return ServerResponse.createBySuccessMsg("当前用户不存在");
+        user.setPassword(StringUtils.EMPTY);
+        return ServerResponse.createBySuccess(user);
+    }
+
+    //backend
+    public ServerResponse checkAdminRole(User user) {
+        if (user != null && user.getRole() == Const.Role.ROLE_ADMIN)
+            return ServerResponse.createBySuccess();
+        else
+            return ServerResponse.createByError();
     }
 }

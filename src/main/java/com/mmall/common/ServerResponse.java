@@ -1,7 +1,10 @@
 package com.mmall.common;
 
-import org.codehaus.jackson.annotate.JsonIgnore;
-import org.codehaus.jackson.map.annotate.JsonSerialize;
+
+
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import java.io.Serializable;
 
@@ -30,7 +33,7 @@ public class ServerResponse<T> implements Serializable {
 
     private ServerResponse(int status, String msg) {
         this.status = status;
-        this.data = data;
+        this.msg = msg;
     }
 
     private ServerResponse(int status, String msg, T data) {

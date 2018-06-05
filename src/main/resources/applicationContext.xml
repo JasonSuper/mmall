@@ -13,8 +13,6 @@
     <!--<context:annotation-config/>-->
     <aop:aspectj-autoproxy/>
 
-    <mvc:annotation-driven/>
-
     <mvc:default-servlet-handler/>
 
     <import resource="applicationContext-datasource.xml"/>
